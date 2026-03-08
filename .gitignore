@@ -1,0 +1,10 @@
+todolist.txt
+*.db
+*.db.json
+*.msh
+*.pre
+*.res
+*.step
+*.brep
+gmsh/
+res/
