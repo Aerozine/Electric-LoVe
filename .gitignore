@@ -10,3 +10,5 @@ gmsh/
 res/
 __pycache__
 .idea/*
+generated_common.pro
+map.csv
