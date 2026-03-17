@@ -1,0 +1,5 @@
+*.geo linguist-detectable=true
+*.pro linguist-detectable=true
+
+*.geo linguist-language=cpp
+*.pro linguist-language=cpp
