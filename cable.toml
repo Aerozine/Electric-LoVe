@@ -1,4 +1,36 @@
-copper_diam=3.9
-copper_insulator_semi=4.3
-copper_insulator_polyet=9.7
+# Cable dimensions in mm
+copper_diam = 3.9
+copper_insulator_semi = 4.3
+copper_insulator_polyet = 9.7
+infinity_diameter = 100
 
+# Physical constants
+mu0 = 4e-7
+eps0 = 8.854187818e-12
+mur_steel = 4
+mur_copper= 1.256629e-6
+# Frequency
+Freq = 50
+
+# Phase angles in radians
+[Phase]
+A = 0.0
+B = -2.0943951023931953   # -120 deg
+C = -4.1887902047863905   # -240 deg
+
+# AC source parameters
+I = 406
+Vrms = 132000
+
+# Conductivities
+[sigma]
+# maybe check temperature depedency
+Copper=59.6e6
+Semiconductor = 2
+Ground = 28
+Ind = 5.99e7
+
+# Relative permittivities
+[epsilon]
+Semiconductor = 2.25
+Others = 1.0

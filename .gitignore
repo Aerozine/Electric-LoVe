@@ -8,3 +8,5 @@ todolist.txt
 *.brep
 gmsh/
 res/
+__pycache__
+.idea/*
