@@ -437,7 +437,7 @@ def main():
     generate_all()
     gmsh.initialize(sys.argv)
     try:
-        gmsh.option.setNumber("General.Terminal", 1)
+        gmsh.option.setNumber("General.Terminal", 0)
         cfg = load_config()
         mesh = cfg["mesh"]
         gmsh.option.setNumber("Mesh.MeshSizeFromPoints", 0)

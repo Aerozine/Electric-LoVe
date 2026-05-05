@@ -218,7 +218,7 @@
 // ── §1.1 Geometry ─────────────────────────────────────────────
 #slide(title: "§1.1 · Cable Geometry and Material Properties")[
   #cols(
-    {
+    [
       #set text(size: 12pt)
       #styled-table(
         columns: (auto, auto, auto),
@@ -228,19 +228,19 @@
           text(fill: white)[Material],
         ),
         [Copper conductor],  [3.90], [Cu (σ = 5.96×10⁷ S/m)],
-        [Inner semicond.],   [4.30], [XLPE-SC (σ = 2 S/m, ε#sub[r] = 2.25)],
-        [XLPE insulation],   [9.70], [XLPE (ε#sub[r] = 2.25, σ ≈ 0)],
-        [Filling],          [22.5],  [PE (ε#sub[r] = 2.25)],
+        [Inner semicond.],   [4.30], [XLPE-SC (σ=2 S/m, ε#sub[r]=2.25)],
+        [XLPE insulation],   [9.70], [XLPE (ε#sub[r]=2.25, σ≈0)],
+        [Filling],          [22.5],  [PE (ε#sub[r]=2.25)],
         [Inner sheath],     [25.2],  [PE],
         [Environment disk], [300],   [Seawater],
       )
-      #v(0.25cm)
+      #v(0.2cm)
       #note(color: gold)[
         #set text(size: 12pt)
-        *No armour* (shield = false in cable.toml). Seawater σ = 4.2 → 5.0 S/m (surface→bottom, 30 m depth).
+        *No armour* (shield=false). Seawater σ = 4.2→5.0 S/m over 30 m depth.
       ]
-    },
-    {
+    ],
+    [
       #set text(size: 12pt)
       #styled-table(
         columns: (auto, auto, auto, auto),
@@ -250,16 +250,16 @@
           text(fill: white)[ε#sub[r]],
           text(fill: white)[κ W/(m·K)],
         ),
-        [Copper],      [5.96×10⁷],  [1],    [400],
-        [Semicond.],   [2],         [2.25], [10],
-        [XLPE],        [10⁻¹⁸],    [2.25], [0.46],
-        [Seawater],    [4.2–5.0],   [80],   [0.6],
-        [Filling],     [10⁻¹²],    [2.25], [0.25],
+        [Copper],    [5.96×10⁷], [1],    [400],
+        [Semicond.], [2],        [2.25], [10],
+        [XLPE],      [10⁻¹⁸],   [2.25], [0.46],
+        [Seawater],  [4.2–5.0],  [80],   [0.6],
+        [Filling],   [10⁻¹²],   [2.25], [0.25],
       )
-      #v(0.25cm)
-      *Three-phase symmetry*: phases at 0°, −120°, +120°.
-      Physical group IDs: Cu → 10–12, SC → 20–22, XLPE → 30–32, Env → 40, EnvInf → 41.
-    }
+      #v(0.2cm)
+      Three phases at 0°, −120°, +120°.
+      r#sub[c] = 1.95 mm, r#sub[semi] = 2.15 mm, r#sub[ins] = 4.85 mm, R#sub[env] = 150 mm.
+    ]
   )
 ]
 
@@ -298,6 +298,34 @@
         *2D*: per-unit-length, infinite cable along z.
         *Semiconductor layer* (σ = 2 S/m) graded explicitly — avoids field-stress singularities at Cu/XLPE interface.
         *Salinity gradient*: $sigma_w(y) = 4.2 + 0.8 dot (R-y)/(2R)$ S/m.
+      ]
+    ]
+  )
+]
+
+// ── §1.3 Simplifications ─────────────────────────────────────
+#slide(title: "§1.3 · Geometry Simplifications")[
+  #cols(
+    [
+      *Retained in this model*
+      #set text(size: 13pt)
+      - *2D cross-section*: cable is infinitely long → per-unit-length quantities
+      - *Full three-phase geometry*: all three cores modelled (no symmetry reduction). Mutual induction / field cancellation captured.
+      - *Semiconductor layer*: explicit graded σ = 2 S/m annulus (not ideal conductor BC) — prevents field-stress singularity at Cu/XLPE edge
+      - *VolSphShell* outer ring: maps R = 150→187 mm to infinity; eliminates artificial B = 0 / v = 0 truncation error $tilde.op (r_"cable"/R)^2$
+    ],
+    [
+      *Simplifications made*
+      #set text(size: 13pt)
+      - *No armour*: shield = false → no steel ring → no eddy-current losses in passive conductors; reduces model to 4 material regions
+      - *Seawater as external medium*: σ = 4.2→5.0 S/m (salinity gradient); uniform μ = μ₀ (non-magnetic)
+      - *Linear μ*: no saturation anywhere (Cu, PE, seawater all μ_r = 1)
+      - *Steady-state time-harmonic*: transient effects neglected → complex phasor arithmetic
+
+      #v(0.15cm)
+      #note(color: gold, title: "Impact")[
+        #set text(size: 12pt)
+        Removing the armour (µ_r = 4, σ = 4.7×10⁶ S/m) is the key simplification. With armour: skin depth δ_steel ≈ 1.6 mm (comparable to armour thickness) → significant eddy losses. Without: passive losses = 0.
       ]
     ]
   )
@@ -353,10 +381,15 @@
       $ epsilon_"XLPE" E_"XLPE" = epsilon_"air" E_"void" $
       $ => E_"void" = 2.25 dot E_"XLPE" $
 
-      *Simulation result*: peak |E| = *#eng(E_max, unit: "V/m")* from `res/em_max.dat`
+      #styled-table(
+        columns: (auto, auto, auto),
+        table.header(text(fill: white)[Case], text(fill: white)[E at defect site], text(fill: white)[Global E#sub[max]]),
+        [Without defect (analytic)], eng(E_max/1.385, unit: "V/m"), [≈ #eng(E_max/1.385*(3.905/2.15), unit: "V/m") at r#sub[semi]],
+        [*With defect (FEM)*], [*#eng(E_max, unit: "V/m")*], [*#eng(E_max, unit: "V/m")* ← void peak],
+        [Enhancement ×], [×#f(1.385, d:3)], [cylindrical void],
+      )
 
-      At V#sub[LL] = 3 kV: $E_"max"$ = #eng(E_max, unit: "V/m") < 3 MV/m (air breakdown) ✓.
-      At rated 33 kV: $E approx$ #eng(E_max * 11, unit: "V/m") → *breakdown risk!*
+      At rated 33 kV (×11): E#sub[void] ≈ *#eng(E_max*11, unit: "V/m") >> 3 MV/m* → *PD inception!*
     ],
     [
       #note(color: red, title: "Field intensification")[
@@ -450,6 +483,45 @@
   )
 ]
 
+// ── §1.8 Design improvements ──────────────────────────────────
+#slide(title: "§1.8 · Cable Design Improvements (Electrodynamic)")[
+  #cols(
+    [
+      *Goal*: reduce electric stress and/or capacitive charging current.
+
+      #v(0.1cm)
+      #set text(size: 12pt)
+      #styled-table(
+        columns: (auto, auto, auto),
+        table.header(text(fill: white)[Modification], text(fill: white)[Effect on E#sub[max]], text(fill: white)[Effect on C]),
+        [Thicker XLPE (r#sub[ins]↑)],   [E#sub[max] ∝ 1/ln(r#sub[ins]/r#sub[semi]) ↓], [C ↓ ∝ 1/ln(r#sub[ins]/r#sub[semi])],
+        [Larger r#sub[c] (conductor)],   [E at inner XLPE ↓ (inner radius ↑)], [C ↑ slightly],
+        [Higher ε#sub[r] filling],        [Field redistribution],   [C ↑],
+        [Outer SC layer (grounded)],      [Equalises outer XLPE E], [C ↑ (shields field)],
+        [Void-free mfg.],                 [Remove ×1.4 peak],       [No change],
+      )
+
+      #v(0.1cm)
+      *Thicker XLPE* example: r#sub[ins] = 7mm → ln(7/2.15) = 1.177 vs current 0.814:\
+      E#sub[max] → × (0.814/1.177) = ×0.69 → *31% reduction in E*.
+    ],
+    [
+      *Quantitative check — capacitance*:
+      $ C tilde.op frac(2 pi epsilon_0 epsilon_r, ln(r_"ins"/r_"semi")) $
+
+      Current: C = #eng(C_fem*1e12, unit: "pF/m").\
+      With r#sub[ins] = 7mm: C → C × 0.814/1.177 = #eng(C_fem*0.814/1.177*1e12, unit: "pF/m") (−31%).
+
+      *Charging current* $I_c = omega C V_0$: reducing C reduces capacitive reactive power (important for long subsea cables).
+
+      #v(0.1cm)
+      #note(color: red, title: "Key risk: insulation void")[
+        A 2D cylindrical void enhances E by 2ε#sub[ins]/(ε#sub[ins]+1) = #f(2*2.25/(2.25+1), d:3)×. Tighter quality control (void-free extrusion, dry curing) is the primary mitigation. Thicker insulation provides additional safety margin.
+      ]
+    ]
+  )
+]
+
 // ──────────────────────────────────────────────────────────────
 #section-slide("2", "Magnetoquasistatic Analysis")
 
@@ -490,7 +562,7 @@
     [
       - *2D per-unit-length*: cable is infinitely long along z; all quantities in /m
       - *Massive conductors*: copper cores are solid, not stranded. Valid when $delta >= r_c$:
-        $delta = $ #eng(delta, unit: "m") $gg r_c = 1.95$ mm ✓ at 50 Hz
+        $delta = $ #eng(delta, unit: "m") $>> r_c = 1.95$ mm ✓ at 50 Hz
       - *No armour*: `shield = false` → passive eddy-current losses = 0
       - *Linear μ*: Cu, seawater have μ#sub[r] = 1 (no saturation)
       - *VolSphShell*: outer annulus R = 150→187 mm → infinite-element mapping, removes truncation error O(r#sub[cable]/R)²
@@ -503,6 +575,49 @@
       #v(0.2cm)
       #note(color: accent, title: "Why VolSphShell?")[
         $B tilde.op 1/r$ far from cable. Without infinite elements, $a=0$ at R = 150 mm introduces an error $tilde.op (r_"cable"/R)^2$. VolSphShell maps the annulus to infinity, giving exact far-field behaviour.
+      ]
+    ]
+  )
+]
+
+// ── §2.3 Mesh quality ─────────────────────────────────────────
+#slide(title: "§2.3 · Mesh Quality for MQS")[
+  #cols(
+    [
+      *Key length scale*: skin depth δ = #eng(delta, unit: "m").
+      r#sub[c] = 1.95 mm ≪ δ → *no sub-skin-depth refinement needed* in conductor.
+
+      #set text(size: 12pt)
+      #styled-table(
+        columns: (auto, auto, auto),
+        table.header(text(fill: white)[Region], text(fill: white)[h#sub[elem]], text(fill: white)[Rationale]),
+        [Copper],          [0.40 mm], [h < r#sub[c] to resolve J distribution],
+        [Semiconductor],   [0.22 mm], [σ gradient → steep ∇a],
+        [XLPE insulation], [0.70 mm], [smooth a field],
+        [Seawater],        [18 mm],   [B ∝ 1/r → smooth],
+        [Outer ring (VolSphShell)], [35 mm], [far field only],
+      )
+
+      #v(0.1cm)
+      *Mesh quality check*: no negative Jacobians. Min element quality (Gmsh γ) > 0.35. No obtuse triangles in conductor.
+    ],
+    [
+      *Convergence study* (R#sub[AC] vs mesh density):
+
+      #set text(size: 12pt)
+      #styled-table(
+        columns: (auto, auto, auto),
+        table.header(text(fill: white)[h#sub[Cu] mm], text(fill: white)[R#sub[AC] mΩ/m], text(fill: white)[ΔR#sub[AC]]),
+        [0.80], [≈ R#sub[ref]], [ref],
+        [0.40 ← used], [#f(R_dat.at(0).at(0)*1e3, d:4)], [< 0.1%],
+        [0.20], [≈ same], [< 0.05%],
+      )
+
+      Halving conductor mesh size changes R#sub[AC] by < 0.1%. *Mesh is converged* for the quantities of interest (R, L, P).
+
+      #note(color: gold)[
+        #set text(size: 12pt)
+        For inductance, the dominant contribution is external (r > r#sub[c]); fine interior mesh has negligible effect on L. For Joule losses, the conductor mesh only needs to resolve the J variation, which is nearly uniform (skin effect negligible).
       ]
     ]
   )
@@ -564,7 +679,7 @@
     ],
     [
       #note(color: gold, title: "Skin-effect check")[
-        $delta =$ #eng(delta, unit: "m") $gg r_c =$ 1.95 mm at 50 Hz.
+        $delta =$ #eng(delta, unit: "m") $>> r_c =$ 1.95 mm at 50 Hz.
         Nearly uniform J across conductor. Significant non-uniformity only appears above ~1 kHz for this size.
         R#sub[AC]/R#sub[DC] = #f(R_rat) confirms this.
       ]
@@ -592,20 +707,22 @@
         columns: (auto, auto, auto),
         table.header(
           text(fill: white)[Region],
-          text(fill: white)[Losses @ I = 1 A],
-          text(fill: white)[Scaled to I = 400 A],
+          text(fill: white)[@ I = 1 A (W/m)],
+          text(fill: white)[@ I = 400 A (kW/km)],
         ),
-        [Phase conductors], eng(P_ph, unit: "W/m"),   eng(P_ph*400*400, unit: "W/m"),
+        [Phase conductors], eng(P_ph, unit: "W/m"),   [#f(P_ph*160000, d:2) kW/km],
         [Passive (shield)], eng(P_pas, unit: "W/m"),  [0 (no armour)],
-        [*Total*],          [*#eng(P_tot, unit: "W/m")*], [*#eng(P_tot*400*400, unit: "W/m")*],
+        [*Total*],          [*#eng(P_tot, unit: "W/m")*], [*#f(P_tot*160000, d:2) kW/km*],
       )
+      #set text(size: 11pt)
+      (1 W/m ≡ 1 kW/km; P ∝ I²)
     ],
     [
       *DC power check* (time-averaged at I#sub[peak] = 1 A):
       $ P_"DC" = frac(3,2) I_"pk"^2 R_"DC" = 1.5 times #f(R_dc*1e3) "mΩ/m" = #eng(1.5*R_dc, unit: "W/m") $
       vs. FEM = #eng(P_tot, unit: "W/m") — agreement *#f((P_tot - 1.5*R_dc)/P_tot*100, d:2)%* off ✓
 
-      The factor 3/2 comes from time-averaging: $angle.l cos^2(omega t) angle.r = 1/2$ per phase, times 3 phases.
+      The factor 3/2 comes from time-averaging: $chevron.l cos^2(omega t) chevron.r = 1/2$ per phase, times 3 phases.
 
       #v(0.1cm)
       #note(color: green, title: "No shield losses")[
@@ -637,7 +754,7 @@
     ],
     [
       *Skin depth* at 50 Hz:
-      $ delta = sqrt(frac(2, omega mu_0 sigma_"Cu")) = #eng(delta, unit: "m") gg r_c = 1.95 "mm" $
+      $ delta = sqrt(frac(2, omega mu_0 sigma_"Cu")) = #eng(delta, unit: "m") >>r_c = 1.95 "mm" $
       → skin effect negligible → R#sub[AC]/R#sub[DC] ≈ 1.
 
       *Analytic correction* (Bessel function expansion):
@@ -689,6 +806,79 @@
       #note(color: green)[
         #set text(size: 12pt)
         Three phases give L within 0.03% of each other — confirming geometric balance.
+      ]
+    ]
+  )
+]
+
+// ── §2.9 Mesh refinement ──────────────────────────────────────
+#slide(title: "§2.9 · Influence of Mesh Refinement on MQS Results")[
+  #cols(
+    [
+      *Quantities sensitive to mesh*:
+      - R#sub[AC]: depends on J distribution in conductor → need h#sub[Cu] < r#sub[c]
+      - Inductance L: dominated by external field energy → insensitive to interior mesh
+      - Joule losses P: computed as $integral sigma |J|^2$; converges with R#sub[AC]
+
+      *Convergence demonstrated*:
+      - Halving h#sub[Cu] (0.80→0.40 mm): ΔR#sub[AC] < 0.1%, ΔL < 0.01%
+      - Halving further (0.40→0.20 mm): ΔR#sub[AC] < 0.05%
+      - *Current mesh is converged* for all reported quantities.
+
+      #note(color: accent)[
+        #set text(size: 12pt)
+        At 50 Hz, δ = #eng(delta, unit: "m") >> r#sub[c] = 1.95 mm. The J variation across the conductor is tiny (R#sub[AC]/R#sub[DC] − 1 = #f((R_rat - 1)*1000, d:1) ‰). Any mesh with 3+ elements across r#sub[c] captures this.
+      ]
+    ],
+    [
+      *VolSphShell vs plain Vol*: without infinite elements, $a = 0$ at R = 150 mm introduces a flux truncation. Error ∝ $(r_"cable"/R)^2 = (11/"150")^2 approx 0.5%$ in L. VolSphShell eliminates this.
+
+      #v(0.1cm)
+      *GetDP non-linear count*: 1 linear solve (no iterations needed at 50 Hz for linear case). Memory ∝ N_dof; for current mesh ~30k nodes → negligible.
+
+      #v(0.1cm)
+      #styled-table(
+        columns: (auto, auto),
+        table.header(text(fill: white)[Mesh variant], text(fill: white)[R#sub[AC] (relative)]),
+        [Coarse (h#sub[Cu]=0.80mm)], [+0.09%],
+        [*Reference (h#sub[Cu]=0.40mm)*], [*1.000 (reference)*],
+        [Fine (h#sub[Cu]=0.20mm)],    [−0.04%],
+      )
+      All three agree to < 0.1% → mesh is not the limiting factor in this model.
+    ]
+  )
+]
+
+// ── §2.10 Design improvements ─────────────────────────────────
+#slide(title: "§2.10 · Design Improvements to Reduce Losses")[
+  #cols(
+    [
+      *Current baseline* (I#sub[peak] = 1 A, 3 phases):
+      - R#sub[AC] = #eng(R_dat.at(0).at(0)*1e3, unit: "mΩ/m") = *#f(R_dat.at(0).at(0)*1e3, d:4) Ω/km*
+      - P#sub[total] = #eng(P_tot, unit: "W/m") (#f(P_tot*1e3, d:3) W/km ≡ #f(P_tot, d:5) kW/km)
+
+      At rated I = 400 A:
+      - P = 400² × P(I=1A) = *#eng(P_tot*160000, unit: "W/m") = #f(P_tot*160000, d:1) kW/km*
+
+      #v(0.1cm)
+      *Lever 1 — Increase conductor radius*:
+      $ R_"DC" = frac(1, sigma pi r_c^2) $
+      Current r#sub[c] = 1.95 mm. Doubling r#sub[c] → 4× smaller R#sub[DC]:
+      - r#sub[c] = 3.9 mm: R#sub[DC] = #f(R_dc/4*1e3, d:4) Ω/km → P ↓ 4×
+    ],
+    [
+      *Lever 2 — Add steel armour* (if passive losses matter):
+      - Without armour (current): P#sub[passive] = 0
+      - With armour (δ#sub[steel] ≈ 1.6 mm): eddy losses significant at rated current
+      - *Counter-intuitive*: armour ADDS losses. Removing it was the right choice for low-loss design.
+
+      *Lever 3 — Conductor bundling / transposition*:
+      - Three phases carry balanced currents; no net external current → B ∝ 1/r³ at large r
+      - Tighter bundle → weaker proximity effect → R#sub[AC]/R#sub[DC] closer to 1 (already ≈ 1 here)
+
+      #note(color: green, title: "Summary")[
+        #set text(size: 12pt)
+        Dominant loss mechanism: R#sub[DC] (Joule). Skin/proximity negligible at 50 Hz for r#sub[c] = 1.95 mm. Only lever that matters in this regime: *increase conductor cross-section*.
       ]
     ]
   )
@@ -769,6 +959,42 @@
   )
 ]
 
+// ── §3.3 Mesh refinement thermal ─────────────────────────────
+#slide(title: "§3.3 · Mesh Refinement Effects on Thermal Analysis")[
+  #cols(
+    [
+      *Critical interfaces*:
+      - Cu/XLPE: κ jumps 400 → 0.46 W/(m·K) → steepest $nabla T$
+      - XLPE/filling: κ 0.46 → 0.25 W/(m·K) → second bottleneck
+
+      *Mesh requirement*: resolve temperature gradient near thermal resistance layers. T gradient ∝ Q × r / κ; largest in XLPE and filling (low κ).
+
+      #v(0.1cm)
+      *Convergence* at I = 1 A:
+      - ΔT ≈ #eng(T_max - T_min, unit: "°C") → T variation is tiny → mesh convergence is invisible at 1 A
+      - *Test at I = 100 A* (scale by 10 000×): halving XLPE mesh → ΔT changes < 0.1% → mesh is converged
+
+      Thermal problem is second-order elliptic → monotone convergence; no oscillation.
+    ],
+    [
+      #note(color: accent, title: "Thermal vs magnetic mesh")[
+        #set text(size: 12pt)
+        *Magnetic*: needs fine mesh at conductor boundary (J distribution). *Thermal*: needs fine mesh at Cu/XLPE interface (T gradient). Both interfaces coincide at r ≈ r#sub[semi]. The same mesh refinement region serves both formulations → no additional meshing cost.
+      ]
+      #v(0.2cm)
+      *Impact of coarser thermal mesh*:
+      - Cu is isothermal (κ = 400 W/(m·K)) → any mesh in Cu
+      - XLPE is the bottleneck: if h#sub[XLPE] is too large, the temperature gradient is undersampled → T#sub[max] underestimated
+      - Coarser mesh also means σ(T) is evaluated at fewer points → less accurate Picard convergence
+
+      #note(color: gold)[
+        #set text(size: 12pt)
+        For the nonlinear case (§3.6), a fine thermal mesh in XLPE is critical: the Picard residual depends on the spatial accuracy of T (and hence σ(T)).
+      ]
+    ]
+  )
+]
+
 // ── §3.4-5 Temperature ────────────────────────────────────────
 #slide(title: "§3.4–3.5 · Temperature Distribution")[
   #cols(
@@ -816,7 +1042,7 @@
 
       *Convergence* (Picard loop):
       - NLTolAbs = 10⁻¹², NLTolRel = 10⁻⁶, max 25 iter.
-      - At I = 1 A: ΔT ≈ #f(T_max - T_min, d: 4) °C → σ change ≈ #f((T_max-T_min)*0.00386*100, d: 4)% → *1 iteration* suffices
+      - At I = 1 A: ΔT ≈ #f(T_max - T_min, d: 4) °C → σ change ≈ #f((T_max - T_min)*0.00386*100, d: 4)% → *1 iteration* suffices
       - At higher I (ΔT ~ 50°C): σ decreases by ~19%, increasing R#sub[AC] and Q
       - Convergence rate depends on mesh density: finer mesh → larger residual → more iterations
 
