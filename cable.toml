@@ -1,36 +1,116 @@
-# Cable dimensions in mm
-copper_diam = 3.9
-copper_insulator_semi = 4.3
-copper_insulator_polyet = 9.7
-infinity_diameter = 100
+# Cable dimensions from the Nexans-style datasheet screenshots.
+# Values are diameters or thicknesses in mm unless stated otherwise.
 
-# Physical constants
-mu0 = 4e-7
-eps0 = 8.854187818e-12
-mur_steel = 4
-mur_copper= 1.256629e-6
-# Frequency
-Freq = 50
+[general]
+shield = false
 
-# Phase angles in radians
-[Phase]
+[environment]
+medium = "seawater"
+cable_depth = 1.2
+water_depth = 30.0
+salinity_surface_psu = 34.0
+salinity_bottom_psu = 36.0
+conductivity_surface = 4.2
+conductivity_bottom = 5.0
+
+[defect]
+enabled = true
+phase = 0
+angle = 0.7853981633974483
+relative_radius = 0.65
+radius = 0.00025
+
+[armour]
+large_count = 24
+large_diameter = 3.6
+small_count = 42
+small_diameter = 2.4
+
+[geometry]
+conductor_diameter = 3.9
+semiconductor_outer_diameter = 4.3
+insulation_outer_diameter = 9.7
+fibre_tube_outer_diameter = 3.0
+fibre_unit_outer_diameter = 9.7
+layup_outer_diameter = 22.5
+core_clearance = 0.5
+wrapping_outer_diameter = 23.5
+inner_sheath_outer_diameter = 25.2
+armour_1_outer_diameter = 32.8
+armour_2_outer_diameter = 38.0
+outer_sheath_outer_diameter = 42.5
+environment_diameter = 300.0
+
+# The datasheet cable has two power cores and one 9.7 mm fibre unit. The
+# ELEC0041 assignment asks for a three-phase system. Three 9.7 mm power cores
+# already occupy the 21 mm lay-up, so the generated model keeps the power-core
+# and armour/sheath data and omits the fibre unit as a geometry simplification.
+phase_count = 3
+
+[mesh]
+conductor_size = 0.00040
+semiconductor_size = 0.00022
+insulation_size = 0.00070
+sheath_size = 0.00125
+armour_size = 0.0012
+environment_size = 0.018
+boundary_size = 0.035
+
+[electrical]
+frequency = 50.0
+current = 1.0
+line_voltage_rms = 3000.0
+
+[thermal]
+ambient_temperature = 20.0
+reference_temperature = 20.0
+convection_coefficient = 20.0
+nonlinear = 0
+nl_tol_abs = 1e-12
+nl_tol_rel = 1e-6
+nl_iter_max = 25
+
+[phase]
 A = 0.0
-B = -2.0943951023931953   # -120 deg
-C = -4.1887902047863905   # -240 deg
+B = -2.0943951023931953
+C = 2.0943951023931953
 
-# AC source parameters
-I = 406
-Vrms = 132000
-
-# Conductivities
 [sigma]
-# maybe check temperature depedency
-Copper=59.6e6
-Semiconductor = 2
-Ground = 28
-Ind = 5.99e7
+Copper = 5.96e7
+Semiconductor = 2.0
+Steel = 4.7e6
+Polyethylene = 1e-18
+Filling = 1e-12
+Environment = 4.0
+Air = 1e-15
 
-# Relative permittivities
-[epsilon]
+[epsilon_r]
+Copper = 1.0
 Semiconductor = 2.25
-Others = 1.0
+Polyethylene = 2.25
+Filling = 2.25
+Steel = 1.0
+Environment = 80.0
+Air = 1.0
+
+[mu_r]
+Copper = 1.0
+Semiconductor = 1.0
+Polyethylene = 1.0
+Filling = 1.0
+Steel = 4.0
+Environment = 1.0
+Air = 1.0
+
+[kappa]
+Copper = 400.0
+Semiconductor = 10.0
+Polyethylene = 0.46
+Filling = 0.25
+Steel = 50.2
+Environment = 0.6
+Air = 0.026
+
+[alpha]
+Copper = 0.00386
+Steel = 0.00390

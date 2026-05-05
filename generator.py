@@ -1,166 +1,347 @@
-import numpy as np
-
 try:
-    # Python 3.11+ – built-in module
     import tomllib as toml_parser
 except ImportError:
-    # Python < 3.11 – external library
     import tomli as toml_parser
 
-with open("cable.toml", "rb") as f:
-    data = toml_parser.load(f)
-    copper_diam = data["copper_diam"] * 1e-3
-    copper_insulator_semi = data["copper_insulator_semi"] * 1e-3
-    copper_insulator_polyet = data["copper_insulator_polyet"] * 1e-3
-    infinity_diameter = data["infinity_diameter"] * 1e-3
+
+PHYS = {
+    "COPPER": 10,
+    "SEMI": 20,
+    "INSULATION": 30,
+    "ENVIRONMENT": 40,
+    "ENVIRONMENT_INF": 41,
+    "BOUNDARY": 50,
+    "THERMAL_BOUNDARY": 51,
+    "FIBRE_STEEL": 60,
+    "FIBRE_SHEATH": 61,
+    "FILLING": 62,
+    "INNER_SHEATH": 63,
+    "OUTER_SHEATH": 64,
+    "ARMOUR_1": 70,
+    "ARMOUR_2": 71,
+    "AIR_BUBBLE": 80,
+}
 
 
-def generate_group(csv_file="map.csv", output_file="generated_common.pro"):
-    data = np.genfromtxt(csv_file, delimiter=",", dtype=str, skip_header=1)
-    copper = []
-    semi = []
-    poly = []
-    water_id = None
-
-    for row in data:
-        name, dim, phys_id, tags = row
-        phys_id = int(phys_id)
-        if "Copper" in name:
-            copper.append((name, phys_id))
-        elif "Semi" in name:
-            semi.append((name, phys_id))
-        elif "PolyEt" in name:
-            poly.append((name, phys_id))
-        elif name == "Water":
-            water_id = phys_id
-
-    # Start writing Group block
-    lines = ["Group {", ""]
-
-    # Copper
-    for name, phys_id in copper:
-        lines.append(f"  {name} = Region[{phys_id}];")
-    lines.append("")
-
-    # Semiconductor
-    for name, phys_id in semi:
-        lines.append(f"  {name} = Region[{phys_id}];")
-    lines.append("")
-
-    # Polyethylene
-    for name, phys_id in poly:
-        lines.append(f"  {name} = Region[{phys_id}];")
-    lines.append("")
-
-    # Higher-level groups
-    lines.append(f"  DomainS_Mag = Region[{{{', '.join(n for n,_ in copper)}}}];")
-    lines.append(f"  Semiconductor = Region[\n {{ {', '.join(n for n,_ in semi)} }}];")
-    lines.append(f"  Insulation = Region[\n {{ {', '.join(n for n,_ in poly)} }}];")
-
-    # Water must be defined BEFORE any compound region that references it
-    if water_id is not None:
-        lines.append(f"  Water = Region[{water_id}];")
-
-    all_names = [n for n, _ in copper + semi + poly]
-    # Water must be in Domain_Ele , otherwise we have 0 Dof
-    ele_names = all_names + (["Water"] if water_id is not None else [])
-    lines.append(f"  Domain_Ele = Region[\n {{ {', '.join(ele_names)} }}];")
-
-    lines.append(f"  DomainC_Mag = Region[\n {{ {', '.join(n for n,_ in copper)} }}];")
-    lines.append(
-        f"  DomainNC_Mag = Region[\n {{ {', '.join(n for n,_ in semi+poly)}{', Water' if water_id is not None else ''} }}];"
-    )
-    # Domain_Mag = full computational domain (conducting + non-conducting + water)
-    lines.append(f"  Domain_Mag = Region[\n {{ DomainC_Mag, DomainNC_Mag }}];")
-    lines.append(f"  Sur_Dirichlet_Ele = Region[{{50}}];")
-    lines.append(f"  Sur_Dirichlet_Mag = Region[{{50}}];")
-
-    lines.append(f"DomainDummy = Region[1234]; //postpro")
-    lines.append("}")
-
-    # Write to file
-    with open(output_file, "w") as f:
-        f.write("\n".join(lines))
-
-
-def generate_function(toml_file="cable.toml", output_file="generated_common.pro"):
-    # Load configuration
+def load_config(toml_file="cable.toml"):
     with open(toml_file, "rb") as f:
-        cfg = toml_parser.load(f)
+        return toml_parser.load(f)
 
-    # Constants
-    eps0 = cfg.get("eps0", 8.854187818e-12)
 
-    # Materials
-    sigma = cfg.get("sigma", {})
-    sigma_copper = sigma.get("Copper", 5.99e7)
-    sigma_semiconductor = sigma.get("Semiconductor", 2)
-    sigma_water = sigma.get("Ground", 28)
-    epsilon_sem = cfg.get("epsilon", {}).get("Semiconductor", 2.25)
-    epsilon_others = cfg.get("epsilon", {}).get("Others", 1.0)
+def mm(value):
+    return value * 1e-3
 
-    # AC parameters
-    Freq = cfg.get("Freq", 50)
-    Phase = cfg.get("Phase", {})
 
-    Pa = Phase.get("A", 0.0)
-    Pb = Phase.get("B", -120.0 / 180.0 * np.pi)
-    Pc = Phase.get("C", -240.0 / 180.0 * np.pi)
+def radii_from_config(cfg):
+    geom = cfg["geometry"]
+    return {
+        "conductor": mm(geom["conductor_diameter"]) / 2,
+        "semi": mm(geom["semiconductor_outer_diameter"]) / 2,
+        "insulation": mm(geom["insulation_outer_diameter"]) / 2,
+        "fibre_tube": mm(geom["fibre_tube_outer_diameter"]) / 2,
+        "fibre_unit": mm(geom["fibre_unit_outer_diameter"]) / 2,
+        "layup": mm(geom["layup_outer_diameter"]) / 2,
+        "wrapping": mm(geom["wrapping_outer_diameter"]) / 2,
+        "inner_sheath": mm(geom["inner_sheath_outer_diameter"]) / 2,
+        "armour_1": mm(geom["armour_1_outer_diameter"]) / 2,
+        "armour_2": mm(geom["armour_2_outer_diameter"]) / 2,
+        "outer_sheath": mm(geom["outer_sheath_outer_diameter"]) / 2,
+        "environment": mm(geom["environment_diameter"]) / 2,
+    }
 
-    I = cfg.get("I", 406)
-    Vrms = cfg.get("Vrms", 132e3)
 
-    lines = ["", "Function {"]
+def _region_list(names):
+    return ", ".join(names)
 
-    lines.append("  mu0 = 4.e-7 * Pi;")
-    lines.append(f"  eps0 = {eps0};")
-    lines.append("")
 
-    lines.append(f"  sigma[Semiconductor] = {sigma_semiconductor};")
-    lines.append(f"  sigma[Water] = {sigma_water};")
-    lines.append(f"  sigma[DomainS_Mag] = {sigma_copper};")
-    # Insulation (polyethylene) gets a near-zero sigma so GetDP
-    # does not encounter undefined material DOFs in Domain_Ele
-    lines.append(f"  sigma[Insulation] = 1e-10;  // near-zero: polyethylene insulator")
-    lines.append("")
+def _bool(value):
+    return "1" if value else "0"
 
-    lines.append(f"  epsilon[Water] = eps0*{epsilon_others};")
-    lines.append(f"  epsilon[DomainS_Mag] = eps0*{epsilon_others};")
-    lines.append(f"  epsilon[Semiconductor] = eps0*{epsilon_sem};")
-    lines.append(f"  epsilon[Insulation] = eps0*{epsilon_others};")
-    lines.append("")
 
-    lines.append("  nu[Water] = 1./mu0;")
-    lines.append("  nu[Semiconductor] = 1./mu0;")
-    lines.append("  nu[DomainS_Mag] = 1./mu0;")
-    lines.append("  nu[Insulation] = 1./mu0;")
-    lines.append("")
+def _toml_bool(cfg, section, key, default):
+    return bool(cfg.get(section, {}).get(key, default))
 
-    lines.append(f"  Freq = {Freq};")
-    lines.append("  Omega = 2*Pi*Freq;")
-    lines.append("")
 
-    lines.append(f"  Pa = {Pa}; Pb = {Pb}; Pc = {Pc};")
-    lines.append(f"  I = {I};")
-    lines.append(f"  Vrms = {Vrms};")
-    lines.append("  V0 = Vrms/Sqrt[3];")
-    lines.append("")
+def generate_geo_constants(toml_file="cable.toml", output_file="generated_geometry.geo"):
+    cfg = load_config(toml_file)
+    radii = radii_from_config(cfg)
+    mesh = cfg["mesh"]
+    armour = cfg.get("armour", {})
+    defect = cfg.get("defect", {})
+    shield = _toml_bool(cfg, "general", "shield", True)
+    core_clearance = mm(cfg["geometry"].get("core_clearance", 0.5))
 
-    lines.append("  Ns[]= 1;")
-    lines.append("  Sc[]= SurfaceArea[];")
-    lines.append("}")
-    with open(output_file, "a") as f:
+    r_cable = radii["outer_sheath"] if shield else radii["inner_sheath"]
+    r_int = max(radii["environment"], 4.0 * r_cable)
+    r_ext = 1.25 * r_int
+
+    lines = [
+        "// Generated by generator.py from cable.toml. Do not edit by hand.",
+        "mm = 1e-3;",
+        f"Shield = {_bool(shield)};",
+        f"Defect = {_bool(bool(defect.get('enabled', False)))};",
+        f"PhaseCount = {cfg['geometry']['phase_count']};",
+        "",
+        f"rConductor = {radii['conductor']};",
+        f"rSemi = {radii['semi']};",
+        f"rInsulation = {radii['insulation']};",
+        f"rLayup = {radii['layup']};",
+        f"rWrapping = {radii['wrapping']};",
+        f"rInnerSheath = {radii['inner_sheath']};",
+        f"rArmour1 = {radii['armour_1']};",
+        f"rArmour2 = {radii['armour_2']};",
+        f"rOuterSheath = {radii['outer_sheath']};",
+        f"rCable = {r_cable};",
+        f"rInt = {r_int};",
+        f"rExt = {r_ext};",
+        f"armour1Count = {int(armour.get('large_count', 24))};",
+        f"armour1WireRadius = {mm(armour.get('large_diameter', 3.6)) / 2};",
+        f"armour2Count = {int(armour.get('small_count', 42))};",
+        f"armour2WireRadius = {mm(armour.get('small_diameter', 2.4)) / 2};",
+        f"defectPhase = {int(defect.get('phase', 0))};",
+        f"defectAngle = {defect.get('angle', 0.7853981633974483)};",
+        f"defectRelativeRadius = {defect.get('relative_radius', 0.65)};",
+        f"defectRadius = {defect.get('radius', 0.00025)};",
+        f"coreClearance = {core_clearance};",
+        "",
+        "phaseRadius = (2 * rInsulation + coreClearance) / Sqrt(3);",
+        "xPhase0 = phaseRadius * Cos(Pi / 2);",
+        "yPhase0 = phaseRadius * Sin(Pi / 2);",
+        "xPhase1 = phaseRadius * Cos(Pi / 2 - 2 * Pi / 3);",
+        "yPhase1 = phaseRadius * Sin(Pi / 2 - 2 * Pi / 3);",
+        "xPhase2 = phaseRadius * Cos(Pi / 2 + 2 * Pi / 3);",
+        "yPhase2 = phaseRadius * Sin(Pi / 2 + 2 * Pi / 3);",
+        "",
+        f"lcConductor = {mesh['conductor_size']};",
+        f"lcSemi = {mesh.get('semiconductor_size', mesh['insulation_size'])};",
+        f"lcInsulation = {mesh['insulation_size']};",
+        f"lcSheath = {mesh['sheath_size']};",
+        f"lcArmour = {mesh['armour_size']};",
+        f"lcEnvironment = {mesh['environment_size']};",
+        f"lcBoundary = {mesh['boundary_size']};",
+        "",
+        f"physCopper0 = {PHYS['COPPER']};",
+        f"physCopper1 = {PHYS['COPPER'] + 1};",
+        f"physCopper2 = {PHYS['COPPER'] + 2};",
+        f"physSemi0 = {PHYS['SEMI']};",
+        f"physSemi1 = {PHYS['SEMI'] + 1};",
+        f"physSemi2 = {PHYS['SEMI'] + 2};",
+        f"physInsulation0 = {PHYS['INSULATION']};",
+        f"physInsulation1 = {PHYS['INSULATION'] + 1};",
+        f"physInsulation2 = {PHYS['INSULATION'] + 2};",
+        f"physEnvironment = {PHYS['ENVIRONMENT']};",
+        f"physEnvironmentInf = {PHYS['ENVIRONMENT_INF']};",
+        f"physBoundary = {PHYS['BOUNDARY']};",
+        f"physThermalBoundary = {PHYS['THERMAL_BOUNDARY']};",
+        f"physFilling = {PHYS['FILLING']};",
+        f"physInnerSheath = {PHYS['INNER_SHEATH']};",
+        f"physOuterSheath = {PHYS['OUTER_SHEATH']};",
+        f"physArmour1 = {PHYS['ARMOUR_1']};",
+        f"physArmour2 = {PHYS['ARMOUR_2']};",
+        f"physAirBubble = {PHYS['AIR_BUBBLE']};",
+    ]
+    with open(output_file, "w") as f:
         f.write("\n".join(lines) + "\n")
+    print(f"Generated {output_file}")
 
-    print(f"Function block appended to {output_file}")
+
+def generate_common(toml_file="cable.toml", output_file="generated_common.pro"):
+    cfg = load_config(toml_file)
+    sigma = cfg["sigma"]
+    eps = cfg["epsilon_r"]
+    mur = cfg["mu_r"]
+    kappa = cfg["kappa"]
+    alpha = cfg["alpha"]
+    thermal = cfg["thermal"]
+    electrical = cfg["electrical"]
+    phases = cfg["phase"]
+    env = cfg.get("environment", {})
+    shield = _toml_bool(cfg, "general", "shield", True)
+    defect_enabled = _toml_bool(cfg, "defect", "enabled", False)
+    radii = radii_from_config(cfg)
+
+    phase_count = cfg["geometry"]["phase_count"]
+    phase_regions = [f"Copper_{i}" for i in range(phase_count)]
+    semi_regions = [f"Semi_{i}" for i in range(phase_count)]
+    insulation_regions = [f"Insulation_{i}" for i in range(phase_count)]
+
+    shield_regions = ["Armour1", "Armour2"] if shield else []
+    air_regions = ["AirBubble"] if defect_enabled else []
+    passive_conductors = shield_regions
+    pe_regions = ["InnerSheath"] + insulation_regions
+    if shield:
+        pe_regions.append("OuterSheath")
+    solid_regions = (
+        phase_regions
+        + semi_regions
+        + insulation_regions
+        + ["Filling", "InnerSheath"]
+        + shield_regions
+        + (["OuterSheath"] if shield else [])
+        + air_regions
+    )
+    full_environment = ["Environment", "EnvironmentInf"]
+
+    lines = []
+    lines.append("// Generated by generator.py from cable.toml. Do not edit by hand.")
+    lines.append("Group {")
+    for i in range(phase_count):
+        lines.append(f"  Copper_{i} = Region[{PHYS['COPPER'] + i}];")
+    lines.append("")
+    for i in range(phase_count):
+        lines.append(f"  Semi_{i} = Region[{PHYS['SEMI'] + i}];")
+    lines.append("")
+    for i in range(phase_count):
+        lines.append(f"  Insulation_{i} = Region[{PHYS['INSULATION'] + i}];")
+    lines.append("")
+    lines.extend(
+        [
+            f"  Filling = Region[{PHYS['FILLING']}];",
+            f"  InnerSheath = Region[{PHYS['INNER_SHEATH']}];",
+            (
+                f"  Armour1 = Region[{PHYS['ARMOUR_1']}];"
+                if shield
+                else "  Armour1 = Region[{}];"
+            ),
+            (
+                f"  Armour2 = Region[{PHYS['ARMOUR_2']}];"
+                if shield
+                else "  Armour2 = Region[{}];"
+            ),
+            (
+                f"  OuterSheath = Region[{PHYS['OUTER_SHEATH']}];"
+                if shield
+                else "  OuterSheath = Region[{}];"
+            ),
+            (
+                f"  AirBubble = Region[{PHYS['AIR_BUBBLE']}];"
+                if defect_enabled
+                else "  AirBubble = Region[{}];"
+            ),
+            f"  Environment = Region[{PHYS['ENVIRONMENT']}];",
+            f"  EnvironmentInf = Region[{PHYS['ENVIRONMENT_INF']}];",
+            f"  Sur_Outer = Region[{PHYS['BOUNDARY']}];",
+            f"  Sur_Thermal = Region[{PHYS['THERMAL_BOUNDARY']}];",
+            "",
+            f"  PhaseConductors = Region[{{{_region_list(phase_regions)}}}];",
+            f"  SemiConductor = Region[{{{_region_list(semi_regions)}}}];",
+            f"  Insulation = Region[{{{_region_list(insulation_regions)}}}];",
+            f"  ShieldConductors = Region[{{{_region_list(shield_regions)}}}];",
+            f"  PassiveConductors = Region[{{{_region_list(passive_conductors)}}}];",
+            f"  Polymeric = Region[{{{_region_list(pe_regions)}}}];",
+            f"  CableSolids = Region[{{{_region_list(solid_regions)}}}];",
+            f"  AirRegions = Region[{{{_region_list(air_regions)}}}];",
+            f"  FullEnvironment = Region[{{{_region_list(full_environment)}}}];",
+            "",
+            "  Domain_Ele = Region[{CableSolids, FullEnvironment}];",
+            "  DomainC_Mag = Region[{PhaseConductors, ShieldConductors}];",
+            "  DomainNC_Mag = Region[{SemiConductor, Polymeric, Filling, AirRegions, FullEnvironment}];",
+            "  Domain_Mag = Region[{DomainNC_Mag, DomainC_Mag}];",
+            "  Domain_The = Region[{CableSolids, Environment}];",
+            "  DomainLoss_The = Region[{DomainC_Mag}];",
+            "  Domain_Inf_Mag = Region[{EnvironmentInf}];",
+            "  Sur_Dirichlet_Ele = Region[{Sur_Outer}];",
+            "  Sur_Dirichlet_Mag = Region[{Sur_Outer}];",
+            "  Sur_Robin_The = Region[{Sur_Thermal}];",
+            "  DomainDummy = Region[1234];",
+            "}",
+            "",
+            "Function {",
+            "  mu0 = 4.e-7 * Pi;",
+            "  eps0 = 8.854187818e-12;",
+            f"  Shield = {_bool(shield)};",
+            f"  JacRadiusInt = {radii['environment']};",
+            f"  JacRadiusExt = {1.25 * radii['environment']};",
+            "  JacCenterX = 0.;",
+            "  JacCenterY = 0.;",
+            "  JacCenterZ = 0.;",
+            f"  CableDepth = {env.get('cable_depth', 1.2)};",
+            f"  WaterDepth = {env.get('water_depth', 30.0)};",
+            f"  SalinitySurface = {env.get('salinity_surface_psu', 34.0)};",
+            f"  SalinityBottom = {env.get('salinity_bottom_psu', 36.0)};",
+            f"  SigmaWaterSurface = {env.get('conductivity_surface', sigma['Environment'])};",
+            f"  SigmaWaterBottom = {env.get('conductivity_bottom', sigma['Environment'])};",
+            "  SigmaWater[] = SigmaWaterSurface + (SigmaWaterBottom - SigmaWaterSurface) * ((JacRadiusInt - Y[]) / (2 * JacRadiusInt));",
+            f"  T0 = {thermal['ambient_temperature']};",
+            f"  Tref = {thermal['reference_temperature']};",
+            "",
+            f"  sigma_e[PhaseConductors] = {sigma['Copper']};",
+            f"  sigma_e[SemiConductor] = {sigma['Semiconductor']};",
+            f"  sigma_e[ShieldConductors] = {sigma['Steel']};",
+            f"  sigma_e[Polymeric] = {sigma['Polyethylene']};",
+            f"  sigma_e[Filling] = {sigma['Filling']};",
+            f"  sigma_e[AirRegions] = {sigma.get('Air', 1e-15)};",
+            "  sigma_e[FullEnvironment] = SigmaWater[];",
+            "",
+            f"  sigmaT[PhaseConductors] = {sigma['Copper']} / (1 + {alpha['Copper']} * ($1 - Tref));",
+            f"  sigmaT[ShieldConductors] = {sigma['Steel']} / (1 + {alpha['Steel']} * ($1 - Tref));",
+            f"  sigmaT[SemiConductor] = {sigma['Semiconductor']};",
+            f"  sigmaT[AirRegions] = {sigma.get('Air', 1e-15)};",
+            "",
+            f"  epsilon[PhaseConductors] = eps0 * {eps['Copper']};",
+            f"  epsilon[SemiConductor] = eps0 * {eps['Semiconductor']};",
+            f"  epsilon[Polymeric] = eps0 * {eps['Polyethylene']};",
+            f"  epsilon[Filling] = eps0 * {eps['Filling']};",
+            f"  epsilon[ShieldConductors] = eps0 * {eps['Steel']};",
+            f"  epsilon[AirRegions] = eps0 * {eps.get('Air', 1.0)};",
+            f"  epsilon[FullEnvironment] = eps0 * {eps['Environment']};",
+            "",
+            f"  nu[PhaseConductors] = 1. / (mu0 * {mur['Copper']});",
+            f"  nu[SemiConductor] = 1. / (mu0 * {mur['Semiconductor']});",
+            f"  nu[Polymeric] = 1. / (mu0 * {mur['Polyethylene']});",
+            f"  nu[Filling] = 1. / (mu0 * {mur['Filling']});",
+            f"  nu[ShieldConductors] = 1. / (mu0 * {mur['Steel']});",
+            f"  nu[AirRegions] = 1. / (mu0 * {mur.get('Air', 1.0)});",
+            f"  nu[FullEnvironment] = 1. / (mu0 * {mur['Environment']});",
+            "",
+            f"  kappa[PhaseConductors] = {kappa['Copper']};",
+            f"  kappa[SemiConductor] = {kappa['Semiconductor']};",
+            f"  kappa[Polymeric] = {kappa['Polyethylene']};",
+            f"  kappa[Filling] = {kappa['Filling']};",
+            f"  kappa[ShieldConductors] = {kappa['Steel']};",
+            f"  kappa[AirRegions] = {kappa.get('Air', 0.026)};",
+            f"  kappa[Environment] = {kappa['Environment']};",
+            "",
+            f"  Freq = {electrical['frequency']};",
+            "  Omega = 2 * Pi * Freq;",
+            f"  I = {electrical['current']};",
+            f"  VrmsLL = {electrical['line_voltage_rms']};",
+            "  V0 = VrmsLL / Sqrt[3];",
+            f"  Pa = {phases['A']};",
+            f"  Pb = {phases['B']};",
+            f"  Pc = {phases['C']};",
+            f"  h = {thermal['convection_coefficient']};",
+            f"  NonLinearThermal = {thermal['nonlinear']};",
+            f"  NLTolAbs = {thermal['nl_tol_abs']};",
+            f"  NLTolRel = {thermal['nl_tol_rel']};",
+            f"  NLIterMax = {thermal['nl_iter_max']};",
+            "  CoefGeo[] = 1.;",
+            "",
+            f"  RdcCopper = 1. / ({sigma['Copper']} * Pi * {radii['conductor']}^2);",
+            f"  SkinDepthCopper = Sqrt[2. / (Omega * mu0 * {sigma['Copper']})];",
+            f"  JUniformCopper = I / (Pi * {radii['conductor']}^2);",
+            f"  CAnalytic = 2. * Pi * eps0 * {eps['Polyethylene']} / Log[{radii['insulation']} / {radii['semi']}];",
+            "}",
+        ]
+    )
+
+    with open(output_file, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"Generated {output_file}")
+
+
+def generate_all(toml_file="cable.toml"):
+    generate_common(toml_file=toml_file)
+    generate_geo_constants(toml_file=toml_file)
 
 
 def generate_like_a_pro(
     csv_file="map.csv", toml_file="cable.toml", output_file="generated_common.pro"
 ):
-    generate_group(csv_file=csv_file, output_file=output_file)
-    generate_function(toml_file=toml_file, output_file=output_file)
+    del csv_file
+    generate_common(toml_file=toml_file, output_file=output_file)
+    generate_geo_constants(toml_file=toml_file)
 
 
 if __name__ == "__main__":
-    generate_like_a_pro()
+    generate_all()

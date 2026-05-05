@@ -1,4 +1,10 @@
 todolist.txt
+CLAUDE.md
+docs/
+.vscode/
+.vscode/*
+.vscode/settings.json
+*.json
 *.db
 *.db.json
 *.msh
@@ -11,4 +17,6 @@ res/
 __pycache__
 .idea/*
 generated_common.pro
+generated_geometry.geo
 map.csv
+*.pdf
