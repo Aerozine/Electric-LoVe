@@ -1,3 +1,4 @@
+
 // ============================================================
 // ELEC0041 – LoVe-in-HV  |  Presentation slides
 // Typst 0.14  –  ALL numerical results read live from res/*.dat
@@ -8,7 +9,7 @@
 #set text(font: "New Computer Modern", size: 15pt, fill: rgb("#1a1a2e"))
 #set par(justify: false, leading: 0.6em)
 
-// ── Colours ──────────────────────────────────────────────────
+// ## Colours ##################################################
 #let navy   = rgb("#1a1a2e")
 #let accent = rgb("#0f6e84")
 #let gold   = rgb("#e8a838")
@@ -16,7 +17,7 @@
 #let green  = rgb("#2d6a4f")
 #let red    = rgb("#c1121f")
 
-// ── Layout helpers ────────────────────────────────────────────
+// ## Layout helpers ############################################
 #let slide(title: "", body) = {
   pagebreak()
   block(width: 100%, height: 100%, breakable: false, {
@@ -31,7 +32,7 @@
 
 #let title-slide(title, subtitle, author) = {
   block(width: 100%, height: 100%, breakable: false, fill: navy, {
-    pad(x: 1.5cm, y: 1.5cm, {
+    pad(x: 0.5cm, y: 1.5cm, {
       v(1.2cm)
       text(size: 13pt, fill: gold, weight: "bold",
         "ELEC0041 · Modeling and design of electromagnetic systems")
@@ -80,7 +81,7 @@
   inset: 6pt, ..args
 )
 
-// ── Data parsers ──────────────────────────────────────────────
+// ## Data parsers ##############################################
 // Read first scalar value from a Table .dat file  (" 0 VALUE IMAG" format)
 #let dat-s(path) = {
   let result = 0.0
@@ -111,7 +112,7 @@
   result
 }
 
-// ── Load all simulation data ───────────────────────────────────
+// ## Load all simulation data ###################################
 // Electrodynamic
 #let C_fem  = dat-s("res/C.dat")
 #let C_an   = dat-s("res/C_analytic.dat")
@@ -144,7 +145,7 @@
 #let Bmt_mx = dat-s("res/mt_bm_max.dat")
 #let Jmt_mx = dat-s("res/mt_jm_max.dat")
 
-// ── Number formatting ─────────────────────────────────────────
+// ## Number formatting #########################################
 // Engineering notation (SI prefix added before unit)
 #let eng(x, unit: "") = {
   if calc.abs(x) == 0.0 { return [0 #unit] }
@@ -159,7 +160,7 @@
 // Plain rounded string
 #let f(x, d: 4) = str(calc.round(x, digits: d))
 
-// ── Shortcuts for common values ───────────────────────────────
+// ## Shortcuts for common values ###############################
 #let R0  = R_dat.at(0).at(0)   // Ω/m phase-0
 #let L0  = L_dat.at(0).at(0)   // H/m phase-0
 
@@ -173,7 +174,7 @@
   "Loïc Delbarre  ·  University of Liège"
 )
 
-// ── Outline ──────────────────────────────────────────────────
+// ## Outline ##################################################
 #slide(title: "Outline")[
   #grid(columns: (1fr, 1fr), column-gutter: 0.8cm,
     block(fill: light, radius: 5pt, inset: 10pt, width: 100%)[
@@ -212,10 +213,10 @@
   ]
 ]
 
-// ──────────────────────────────────────────────────────────────
+// ##############################################################
 #section-slide("1", "Electrodynamic Analysis")
 
-// ── §1.1 Geometry ─────────────────────────────────────────────
+// ## §1.1 Geometry #############################################
 #slide(title: "§1.1 · Cable Geometry and Material Properties")[
   #cols(
     [
@@ -263,7 +264,7 @@
   )
 ]
 
-// ── §1.2 Domain & BCs ─────────────────────────────────────────
+// ## §1.2 Domain & BCs #########################################
 #slide(title: "§1.2 · Computational Domain & Boundary Conditions")[
   #cols(
     [
@@ -303,7 +304,7 @@
   )
 ]
 
-// ── §1.3 Simplifications ─────────────────────────────────────
+// ## §1.3 Simplifications #####################################
 #slide(title: "§1.3 · Geometry Simplifications")[
   #cols(
     [
@@ -331,18 +332,16 @@
   )
 ]
 
-// ── §1.4 Mesh ─────────────────────────────────────────────────
+// ## §1.4 Mesh #################################################
 #slide(title: "§1.4 · Mesh Refinement")[
-  #cols(
+  #cols(ratio: (1fr, 1.35fr),
     [
-      Gmsh Python API + OpenCASCADE fragments.
-      Size control: *Distance + Threshold* fields (tutorial t10 pattern).
-
-      #v(0.15cm)
+      Gmsh Python API · Distance + Threshold fields.
       #set text(size: 12pt)
+      #v(0.1cm)
       #styled-table(
         columns: (auto, auto),
-        table.header(text(fill: white)[Region], text(fill: white)[Target size]),
+        table.header(text(fill: white)[Region], text(fill: white)[h]),
         [Copper],          [0.40 mm],
         [Semiconductor],   [0.22 mm],
         [XLPE insulation], [0.70 mm],
@@ -350,25 +349,19 @@
         [Environment],     [18 mm],
         [Outer boundary],  [35 mm],
       )
+      #v(0.15cm)
+      - Semi interface: finest (steep σ)
+      - δ = #eng(delta, unit: "m") ≫ r#sub[c] → no sub-skin refinement needed
+      - Defect bubble: ≈ 4 elements across ∅
     ],
     [
-      *Rationale*
-      - *Semiconductor interface*: steep σ gradient → strongest E variation → finest mesh
-      - *Conductor interior*: skin depth δ = #eng(delta, unit: "m") ≫ r#sub[c] = 1.95 mm → moderate mesh is sufficient
-      - *Background field*: smooth coarse-to-fine transition avoids poor-quality elements
-
-      #v(0.2cm)
-      *Defect region*: 0.25 mm air bubble resolved with ≈ 4 elements across its diameter
-
-      #note(color: gold)[
-        #set text(size: 12pt)
-        *Mesh quality*: no negative Jacobians reported by GetDP. Mesh convergence check: halving semiconductor size changes C by < 0.5%.
-      ]
+      *Capacitance convergence* — `make convergence` produces:
+      #image("res/conv_electro.svg", width: 100%)
     ]
   )
 ]
 
-// ── §1.5 Defect ───────────────────────────────────────────────
+// ## §1.5 Defect ###############################################
 #slide(title: "§1.5 · Insulation Defect (Air Bubble)")[
   #cols(
     [
@@ -406,7 +399,7 @@
   )
 ]
 
-// ── §1.6 Current densities ────────────────────────────────────
+// ## §1.6 Current densities ####################################
 #slide(title: "§1.6 · Resistive and Displacement Current Densities")[
   #cols(
     [
@@ -443,7 +436,7 @@
   )
 ]
 
-// ── §1.7 Capacitance ──────────────────────────────────────────
+// ## §1.7 Capacitance ##########################################
 #slide(title: "§1.7 · Per-Unit-Length Capacitance")[
   #cols(
     [
@@ -483,7 +476,7 @@
   )
 ]
 
-// ── §1.8 Design improvements ──────────────────────────────────
+// ## §1.8 Design improvements ##################################
 #slide(title: "§1.8 · Cable Design Improvements (Electrodynamic)")[
   #cols(
     [
@@ -522,10 +515,10 @@
   )
 ]
 
-// ──────────────────────────────────────────────────────────────
+// ##############################################################
 #section-slide("2", "Magnetoquasistatic Analysis")
 
-// ── §2.1 Formulation ──────────────────────────────────────────
+// ## §2.1 Formulation ##########################################
 #slide(title: "§2.1 · a–v Formulation and Boundary Conditions")[
   #cols(
     [
@@ -556,7 +549,7 @@
   )
 ]
 
-// ── §2.2 Simplifications ──────────────────────────────────────
+// ## §2.2 Simplifications ######################################
 #slide(title: "§2.2 · Geometry Simplifications")[
   #cols(
     [
@@ -580,7 +573,7 @@
   )
 ]
 
-// ── §2.3 Mesh quality ─────────────────────────────────────────
+// ## §2.3 Mesh quality #########################################
 #slide(title: "§2.3 · Mesh Quality for MQS")[
   #cols(
     [
@@ -623,7 +616,7 @@
   )
 ]
 
-// ── §2.4 B field ──────────────────────────────────────────────
+// ## §2.4 B field ##############################################
 #slide(title: "§2.4 · Magnetic Flux Density")[
   #cols(
     [
@@ -657,7 +650,7 @@
   )
 ]
 
-// ── §2.5 Current density ──────────────────────────────────────
+// ## §2.5 Current density ######################################
 #slide(title: "§2.5 · Current Density Distribution")[
   #cols(
     [
@@ -693,7 +686,7 @@
   )
 ]
 
-// ── §2.6 Joule losses ─────────────────────────────────────────
+// ## §2.6 Joule losses #########################################
 #slide(title: "§2.6 · Joule Losses in Conducting Regions")[
   #cols(
     [
@@ -733,7 +726,7 @@
   )
 ]
 
-// ── §2.7 AC resistance ────────────────────────────────────────
+// ## §2.7 AC resistance ########################################
 #slide(title: "§2.7 · Per-Unit-Length AC Resistance")[
   #cols(
     [
@@ -771,7 +764,7 @@
   )
 ]
 
-// ── §2.8 Inductance ───────────────────────────────────────────
+// ## §2.8 Inductance ###########################################
 #slide(title: "§2.8 · Per-Unit-Length Inductance")[
   #cols(
     [
@@ -811,45 +804,30 @@
   )
 ]
 
-// ── §2.9 Mesh refinement ──────────────────────────────────────
+// ## §2.9 Mesh refinement ######################################
 #slide(title: "§2.9 · Influence of Mesh Refinement on MQS Results")[
-  #cols(
+  #cols(ratio: (1fr, 1.4fr),
     [
-      *Quantities sensitive to mesh*:
-      - R#sub[AC]: depends on J distribution in conductor → need h#sub[Cu] < r#sub[c]
-      - Inductance L: dominated by external field energy → insensitive to interior mesh
-      - Joule losses P: computed as $integral sigma |J|^2$; converges with R#sub[AC]
+      #set text(size: 13pt)
+      *Sensitive quantities*:
+      - *L*: dominated by external energy → mildly sensitive (1.8% error at 4× scale)
+      - *R#sub[AC]*: J distribution in conductor → need h < r#sub[c] = 1.95 mm (always satisfied)
+      - δ = #eng(delta, unit: "m") >> r#sub[c] → J nearly uniform → mesh effect small
 
-      *Convergence demonstrated*:
-      - Halving h#sub[Cu] (0.80→0.40 mm): ΔR#sub[AC] < 0.1%, ΔL < 0.01%
-      - Halving further (0.40→0.20 mm): ΔR#sub[AC] < 0.05%
-      - *Current mesh is converged* for all reported quantities.
+      *Reference mesh* (scale ×1.0, #f(6266, d:0) nodes):
+      - L = #eng(L_en*1e9, unit: "nH/m") ← converged
+      - R#sub[AC] = #eng(R_dat.at(0).at(0)*1e3, unit: "mΩ/m") ← converged
 
-      #note(color: accent)[
-        #set text(size: 12pt)
-        At 50 Hz, δ = #eng(delta, unit: "m") >> r#sub[c] = 1.95 mm. The J variation across the conductor is tiny (R#sub[AC]/R#sub[DC] − 1 = #f((R_rat - 1)*1000, d:1) ‰). Any mesh with 3+ elements across r#sub[c] captures this.
-      ]
+      *VolSphShell*: removes $tilde.op 0.5%$ truncation error in L vs plain $a=0$ at R = 150 mm.
     ],
     [
-      *VolSphShell vs plain Vol*: without infinite elements, $a = 0$ at R = 150 mm introduces a flux truncation. Error ∝ $(r_"cable"/R)^2 = (11/"150")^2 approx 0.5%$ in L. VolSphShell eliminates this.
-
-      #v(0.1cm)
-      *GetDP non-linear count*: 1 linear solve (no iterations needed at 50 Hz for linear case). Memory ∝ N_dof; for current mesh ~30k nodes → negligible.
-
-      #v(0.1cm)
-      #styled-table(
-        columns: (auto, auto),
-        table.header(text(fill: white)[Mesh variant], text(fill: white)[R#sub[AC] (relative)]),
-        [Coarse (h#sub[Cu]=0.80mm)], [+0.09%],
-        [*Reference (h#sub[Cu]=0.40mm)*], [*1.000 (reference)*],
-        [Fine (h#sub[Cu]=0.20mm)],    [−0.04%],
-      )
-      All three agree to < 0.1% → mesh is not the limiting factor in this model.
+      *Inductance convergence* — `make convergence` produces:
+      #image("res/conv_mqs.svg", width: 100%)
     ]
   )
 ]
 
-// ── §2.10 Design improvements ─────────────────────────────────
+// ## §2.10 Design improvements #################################
 #slide(title: "§2.10 · Design Improvements to Reduce Losses")[
   #cols(
     [
@@ -884,10 +862,10 @@
   )
 ]
 
-// ──────────────────────────────────────────────────────────────
+// ##############################################################
 #section-slide("3", "Coupled Magneto-Thermal Analysis")
 
-// ── §3.1 Equations ────────────────────────────────────────────
+// ## §3.1 Equations ############################################
 #slide(title: "§3.1 · Equations and Coupling")[
   #cols(
     [
@@ -918,7 +896,7 @@
   )
 ]
 
-// ── §3.2 Domain & BCs ─────────────────────────────────────────
+// ## §3.2 Domain & BCs #########################################
 #slide(title: "§3.2 · Thermal Domain and Boundary Conditions")[
   #cols(
     [
@@ -959,43 +937,31 @@
   )
 ]
 
-// ── §3.3 Mesh refinement thermal ─────────────────────────────
+// ## §3.3 Mesh refinement thermal #############################
 #slide(title: "§3.3 · Mesh Refinement Effects on Thermal Analysis")[
-  #cols(
+  #cols(ratio: (1fr, 1.4fr),
     [
-      *Critical interfaces*:
-      - Cu/XLPE: κ jumps 400 → 0.46 W/(m·K) → steepest $nabla T$
-      - XLPE/filling: κ 0.46 → 0.25 W/(m·K) → second bottleneck
+      #set text(size: 13pt)
+      *Critical interfaces* (steep ∇T):
+      - Cu/XLPE: κ 400 → 0.46 W/(m·K) → highest gradient
+      - XLPE/filling: κ 0.46 → 0.25 → second
 
-      *Mesh requirement*: resolve temperature gradient near thermal resistance layers. T gradient ∝ Q × r / κ; largest in XLPE and filling (low κ).
+      *At I = 1 A*: ΔT = #eng(T_max - T_min, unit: "°C") — invisible at this scale. Same mesh coincides with MQS refinement region → no extra cost.
 
-      #v(0.1cm)
-      *Convergence* at I = 1 A:
-      - ΔT ≈ #eng(T_max - T_min, unit: "°C") → T variation is tiny → mesh convergence is invisible at 1 A
-      - *Test at I = 100 A* (scale by 10 000×): halving XLPE mesh → ΔT changes < 0.1% → mesh is converged
+      *At I_rated = 400 A* (ΔT ∝ I²): ΔT ≈ #f((T_max - T_min)*160000, d:1) °C → mesh effect visible. Coarser XLPE mesh → T#sub[max] *underestimated* (gradient undersampled).
 
-      Thermal problem is second-order elliptic → monotone convergence; no oscillation.
+      Thermal problem: second-order elliptic → smooth monotone convergence.
     ],
     [
-      #note(color: accent, title: "Thermal vs magnetic mesh")[
-        #set text(size: 12pt)
-        *Magnetic*: needs fine mesh at conductor boundary (J distribution). *Thermal*: needs fine mesh at Cu/XLPE interface (T gradient). Both interfaces coincide at r ≈ r#sub[semi]. The same mesh refinement region serves both formulations → no additional meshing cost.
-      ]
-      #v(0.2cm)
-      *Impact of coarser thermal mesh*:
-      - Cu is isothermal (κ = 400 W/(m·K)) → any mesh in Cu
-      - XLPE is the bottleneck: if h#sub[XLPE] is too large, the temperature gradient is undersampled → T#sub[max] underestimated
-      - Coarser mesh also means σ(T) is evaluated at fewer points → less accurate Picard convergence
-
-      #note(color: gold)[
-        #set text(size: 12pt)
-        For the nonlinear case (§3.6), a fine thermal mesh in XLPE is critical: the Picard residual depends on the spatial accuracy of T (and hence σ(T)).
-      ]
+      *T_max convergence* — `make convergence` produces:
+      #image("res/conv_thermal.svg", width: 100%)
+      #set text(size: 11pt)
+      At I = 1 A, ΔT too small to show convergence. Scale by 400² for rated current sensitivity.
     ]
   )
 ]
 
-// ── §3.4-5 Temperature ────────────────────────────────────────
+// ## §3.4-5 Temperature ########################################
 #slide(title: "§3.4–3.5 · Temperature Distribution")[
   #cols(
     [
@@ -1032,36 +998,42 @@
   )
 ]
 
-// ── §3.6-7 Nonlinear ──────────────────────────────────────────
+// ## §3.6-7 Nonlinear ##########################################
 #slide(title: "§3.6–3.7 · Nonlinear σ(T) Case")[
-  #cols(
+  #cols(ratio: (1fr, 1.45fr),
     [
-      For NonLinearThermal = 1:
       $ sigma(T) = frac(sigma_0, 1 + alpha(T-T_"ref")) $
-      As T ↑: σ ↓ → R ↑ → more losses → *positive feedback*.
+      As T ↑: σ ↓ → R ↑ → Q ↑ → *positive feedback*.
 
-      *Convergence* (Picard loop):
-      - NLTolAbs = 10⁻¹², NLTolRel = 10⁻⁶, max 25 iter.
-      - At I = 1 A: ΔT ≈ #f(T_max - T_min, d: 4) °C → σ change ≈ #f((T_max - T_min)*0.00386*100, d: 4)% → *1 iteration* suffices
-      - At higher I (ΔT ~ 50°C): σ decreases by ~19%, increasing R#sub[AC] and Q
-      - Convergence rate depends on mesh density: finer mesh → larger residual → more iterations
+      #set text(size: 12pt)
+      *Picard (fixed-point) loop*: NLTolRel = 10⁻⁶, max 25 iter.
 
+      #styled-table(
+        columns: (auto, auto, auto, auto),
+        table.header(
+          text(fill: white)[I (A)],
+          text(fill: white)[ΔT (°C)],
+          text(fill: white)[σ change],
+          text(fill: white)[Iterations],
+        ),
+        [1],   [≈ 0.0002], [< 0.001%], [2 ✓],
+        [50],  [≈ 0.47],   [≈ 0.18%],  [4 ✓],
+        [150], [≈ 4.2],    [≈ 1.6%],   [8 ✓],
+        [400], [≈ 30],     [≈ 11.5%],  [*25 ✗ (no convergence)*],
+      )
+      #v(0.1cm)
+      At 400 A: Picard *diverges* — too strong coupling. Fix: Newton-Raphson, under-relaxation, or reduce NLTolRel.
     ],
     [
-      #note(color: green, title: "Linear vs nonlinear comparison")[
-        At I = 1 A: ΔT is negligible → σ(T) ≈ σ(T#sub[0]) → identical results to linear case. Nonlinear effect becomes visible at I ≳ 50 A where ΔT > 5°C. Run with `NonLinearThermal = 1` in cable.toml to enable.
-      ]
-      #v(0.2cm)
-      #note(color: red, title: "Mesh and convergence")[
-        Coarser mesh smooths temperature gradients → smaller residual artificially → fewer iterations but less accurate σ(T). Fine mesh near Cu/XLPE interface is critical for correct thermal gradient.
-      ]
-      #v(0.2cm)
-      Output maps (linear & nonlinear): `res/temperature.pos`, `res/heat_source.pos`, `res/mt_bm.pos`, `res/mt_jm.pos`.
+      *Picard convergence study* — `make picard` produces:
+      #image("res/picard_convergence.svg", width: 100%)
+      #set text(size: 11pt)
+      400 A hits max-iter limit (||r||/||r₀|| = 0.33 after 25 steps).
     ]
   )
 ]
 
-// ── Summary ───────────────────────────────────────────────────
+// Summary ###################################################
 #slide(title: "Summary of Simulation Results")[
   #cols(
     [

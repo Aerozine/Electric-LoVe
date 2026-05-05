@@ -1,6 +1,6 @@
 todolist.txt
-CLAUDE.md
 docs/
+.todo
 .vscode/
 .vscode/*
 .vscode/settings.json

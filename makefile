@@ -2,7 +2,7 @@ PYTHON ?= ./gmsh/bin/python
 GMSH   ?= gmsh
 GETDP  ?= getdp
 
-.PHONY: init mesh clean run_elec run_mag run_therm run_all postmax slides view view_elec view_mag view_therm
+.PHONY: init mesh clean run_elec run_mag run_therm run_all postmax slides convergence picard view view_elec view_mag view_therm
 
 init:
 	python3 -m venv gmsh
@@ -29,8 +29,14 @@ run_therm: mesh
 postmax:
 	python3 postmax.py
 
-slides: postmax
+slides: postmax convergence picard
 	typst compile slides.typ slides.pdf
+
+convergence:
+	$(PYTHON) mesh_convergence.py
+
+picard:
+	$(PYTHON) picard_convergence.py
 
 run_all: run_elec run_mag run_therm postmax
 

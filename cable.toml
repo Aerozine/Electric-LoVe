@@ -2,7 +2,7 @@
 # Values are diameters or thicknesses in mm unless stated otherwise.
 
 [general]
-shield = false
+shield = true 
 
 [environment]
 medium = "seawater"
@@ -39,7 +39,7 @@ inner_sheath_outer_diameter = 25.2
 armour_1_outer_diameter = 32.8
 armour_2_outer_diameter = 38.0
 outer_sheath_outer_diameter = 42.5
-environment_diameter = 300.0
+environment_diameter = 90.0
 
 # The datasheet cable has two power cores and one 9.7 mm fibre unit. The
 # ELEC0041 assignment asks for a three-phase system. Three 9.7 mm power cores
