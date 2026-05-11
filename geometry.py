@@ -241,7 +241,7 @@ def add_threshold_field(field_id, curves, size_min, size_max, dist_min, dist_max
     return threshold_id
 
 
-def configure_background_mesh(cfg, radii, groups, r_ext):
+def configure_background_mesh(cfg, radii, groups, r_ext, phase_xy):
     mesh = cfg["mesh"]
     shield = bool_cfg(cfg, "general", "shield", True)
     r_cable = radii["outer_sheath"] if shield else radii["inner_sheath"]
@@ -301,6 +301,15 @@ def configure_background_mesh(cfg, radii, groups, r_ext):
 
     def mesh_size_callback(dim, tag, x, y, z, lc):
         del dim, tag, z
+        for px, py in phase_xy:
+            local_r = math.hypot(x - px, y - py)
+            if local_r <= radii["conductor"]:
+                return min(lc, mesh["conductor_size"])
+            if local_r <= radii["semi"]:
+                return min(lc, mesh.get("semiconductor_size", mesh["insulation_size"]))
+            if local_r <= radii["insulation"]:
+                return min(lc, mesh["insulation_size"])
+
         radius = math.hypot(x, y)
         if radius <= r_cable:
             base = mesh["sheath_size"]
@@ -429,7 +438,7 @@ def generate_geometry():
     )
 
     set_sizes_from_groups(cfg, groups, r_ext)
-    configure_background_mesh(cfg, radii, groups, r_ext)
+    configure_background_mesh(cfg, radii, groups, r_ext, phase_xy)
     return physical_map
 
 

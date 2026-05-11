@@ -2,7 +2,9 @@ PYTHON ?= ./gmsh/bin/python
 GMSH   ?= gmsh
 GETDP  ?= getdp
 
-.PHONY: init mesh clean run_elec run_mag run_therm run_all postmax slides convergence picard view view_elec view_mag view_therm
+.PHONY: init mesh clean run_elec run_mag run_therm run_all postmax slides \
+        convergence picard domain freq geometry_plots defect \
+        view view_elec view_mag view_therm
 
 init:
 	python3 -m venv gmsh
@@ -13,37 +15,50 @@ mesh:
 
 run_elec: mesh
 	$(GETDP) LoVe.pro -msh LoVe.msh -solve Electrodynamics -pos Post_Ele -v2
-	python3 postmax.py
+	python3 postpro/postmax.py
 
 run_mag: mesh
 	$(GETDP) LoVe.pro -msh LoVe.msh -setnumber Flag_AnalysisType 1 -solve Magnetoquasistatics -pos Post_Mag -v2
-	python3 postmax.py
+	python3 postpro/postmax.py
 
 run_therm: mesh
 	$(GETDP) LoVe.pro -msh LoVe.msh -setnumber Flag_AnalysisType 2 \
 	  -solve Magnetothermal -pos Post_Thermal -v2
 	$(GETDP) LoVe.pro -msh LoVe.msh -setnumber Flag_AnalysisType 2 \
 	  -pos Post_MagTher -v2
-	python3 postmax.py
+	python3 postpro/postmax.py
 
 postmax:
-	python3 postmax.py
+	python3 postpro/postmax.py
 
-slides: postmax convergence picard
-	typst compile slides.typ slides.pdf
+slides: postmax convergence picard domain freq geometry_plots defect
+	typst compile --root . slides/slides.typ slides/slides.pdf
 
 convergence:
-	$(PYTHON) mesh_convergence.py
+	$(PYTHON) postpro/mesh_convergence.py
 
 picard:
-	$(PYTHON) picard_convergence.py
+	$(PYTHON) postpro/picard_convergence.py
+
+domain:
+	$(PYTHON) postpro/domain_convergence.py
+
+freq:
+	$(PYTHON) postpro/freq_sweep.py
+
+geometry_plots:
+	$(PYTHON) postpro/plot_geometry.py
+
+defect:
+	$(PYTHON) postpro/defect_analysis.py
 
 run_all: run_elec run_mag run_therm postmax
 
 clean:
-	rm -rf *.db *.db.json *.msh *.pre *.res res *.csv \
+	rm -rf *.db *.db.json *.msh *.pre *.res *.pos *.dat *.csv \
 	       generated_common.pro generated_geometry.geo \
-	       LoVe.step LoVe.brep __pycache__
+	       LoVe.step LoVe.brep __pycache__ \
+	       slides/graphs/*.svg
 
 view:
 	$(GMSH) LoVe.pro

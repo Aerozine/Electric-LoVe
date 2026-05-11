@@ -3,7 +3,7 @@
 ELEC0041 finite-element model: three-phase subsea HV cable analysed with
 electrodynamic (v), magnetoquasistatic (a–v), and coupled magneto-thermal
 formulations via Gmsh + GetDP.
-
+![Cable model](image.png)
 ## Quick start
 
 ```sh
