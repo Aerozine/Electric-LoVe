@@ -158,6 +158,14 @@
 ]
 
 // ## §1.5 Defect ###############################################
+// Analytical bubble field estimate (coaxial formula, independent of mesh quality)
+#let r_semi_m   = t_semi_od / 2000.0
+#let r_ins_m    = t_ins_od  / 2000.0
+#let rel_r_def  = toml-val("relative_radius")
+#let r_void_m   = r_semi_m + rel_r_def * (r_ins_m - r_semi_m)
+#let E_bg_void  = V0_val / (r_void_m * calc.ln(r_ins_m / r_semi_m))
+#let E_void_est = E_bg_void * 2.0 * 2.25 / (2.25 + 1.0)
+
 #slide(title: [§1.5 #sym.dot.c Insulation Defect -- Air Bubble])[
   #cols(
     [
@@ -172,11 +180,11 @@
       For a cylindrical air void:
       $E_"void" = frac(2 epsilon_r, epsilon_r + 1) E_0 = #f(2*2.25/(2.25+1), d:3) E_0$.
 
-      *FEM result* at V#sub[LL] = 3 kV, r = 250 µm:
-      - $|E|_"max"$ at semiconductor surface: *#eng(E_max, unit: "V/m")*
-      - Estimated field inside bubble: #eng(E_max * 0.215 / 0.391 * 2*2.25/(2.25+1), unit: "V/m")
+      *Analytical estimate* at $r_"void"$ = #f(r_void_m*1000, d:3) mm (coaxial, V#sub[LL] = 3 kV):
+      $ E_0 = frac(V_phi, r_"void" ln(r_"ins"\/r_"semi")) = #eng(E_bg_void, unit: "V/m") $
+      $ E_"void" = #f(2*2.25/(2.25+1), d:3) times E_0 = bold(#eng(E_void_est, unit: "V/m")) $
 
-      Rated 33 kV scales fields by $times$11; resolved bubbles exceed 3 MV/m $->$ *PD expected*.
+      Rated 33 kV scales by $times$11 $->$ #eng(E_void_est*11, unit: "V/m") $>>$ 3 MV/m $->$ *PD expected*.
     ],
     [
       #image("graphs/defect_field.svg", width: 100%)
@@ -274,14 +282,18 @@
       At 50 Hz: $sigma_"XLPE"/(omega epsilon) approx 10^(-18)/(2pi times 50 times 2.25 times 8.85 times 10^(-12)) approx 10^(-10)$ $->$ ideal dielectric. *C is flat with frequency* (confirmed by sweep below).
 
       #v(0.15cm)
-      *What changes with f*: the capacitive charging current:
+      *Charging current* -- physical meaning:
+      The cable acts as a distributed capacitor: each metre of XLPE stores charge $q = C V_0$ on the conductor surface. In AC operation, this charge is deposited and withdrawn every half-cycle, so a *reactive* current flows along the cable even at no load:
       $ I_c = omega C V_0 $
-      so $I_c$ grows linearly with frequency even when C is constant.
+      $I_c$ grows linearly with $f$ even though $C$ is constant.
 
       At 50 Hz and V#sub[LL] = 3 kV:
-      $I_c approx 2 pi times 50 times #eng(C_fem, unit: "F/m") times #eng(V0_val, unit: "V") = #eng(2*calc.pi*50*C_fem*V0_val, unit: "A/m")$.
+      $I_c = 2 pi times 50 times #eng(C_fem, unit: "F/m") times #eng(V0_val, unit: "V") = #eng(2*calc.pi*50*C_fem*V0_val, unit: "A/m")$.
 
-      For long AC subsea links, this charging current is the practical frequency limitation; it is why HVDC becomes attractive for very long distances.
+      For a cable of length $ell$, the total charging current at rated 33 kV reaches:
+      $I_c^"total" = omega C_"FEM" times (V_"LL"/sqrt(3)) times ell$
+
+      This current flows in the conductor before any load is connected, occupying thermal and ampacity budget. Beyond a *critical length* $ell_c = I_"rated"/(omega C V_0)$, the cable is fully loaded by its own charging current and cannot transmit useful power. For typical 33 kV XLPE cables this critical length is $tilde$ 50--100 km, which is why *HVDC* (DC has zero charging current) becomes attractive for long subsea links.
     ],
     [
       #align(center, image("img/E.png", height: 4.35cm))

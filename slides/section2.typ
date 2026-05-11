@@ -105,7 +105,7 @@
 
 // ## §2.4 B field ##############################################
 #slide(title: [§2.4 #sym.dot.c Magnetic Flux Density])[
-  #cols(
+  #cols(ratio: (1fr, 1.4fr),
     [
       *Derived quantity*: $bold(B) = nabla times bold(a)$ $->$ `{d a}` in GetDP.
       For 2D: $bold(B) = (partial_y a_z,  -partial_x a_z, 0)$.
@@ -121,25 +121,29 @@
       #v(0.2cm)
       At I = 400 A (rated): |B|#sub[max] $approx$ #eng(B_max*400*1e3, unit: "mT").
 
-      Iso-contours of $a_z$ are flux lines. The three-phase bundle largely *confines* the field inside due to partial cancellation. Output: `res/bm.pos`, `res/az.pos`.
-    ],
-    [
+      Iso-contours of $a_z$ are flux lines. The three-phase bundle largely *confines* the field inside due to partial cancellation. Open `res/bm.pos` in Gmsh to view.
+
+      #v(0.3cm)
       #note(color: accent, title: "Ampere's law check")[
-        In a balanced three-phase system, net current enclosed = 0 for any large circle. Therefore B $->$ 0 as r $->$ $infinity$. The VolSphShell mapping enforces this correctly. Without it, the B = 0 BC at R = 150 mm would underestimate the leakage flux.
+        #set text(size: 11pt)
+        In a balanced three-phase system, net current enclosed = 0 for any large circle. Therefore B $->$ 0 as r $->$ $infinity$. The VolSphShell mapping enforces this correctly.
       ]
       #v(0.2cm)
       #note(color: green, title: "Magnetic energy check")[
-        $ W_m = frac(1,2) integral_Omega nu |bold(B)|^2 d Omega $
-        = #eng(W_m, unit: "J/m").
-        Used as independent verification of inductance (§2.8).
+        #set text(size: 11pt)
+        $ W_m = frac(1,2) integral_Omega nu |bold(B)|^2 d Omega = $ #eng(W_m, unit: "J/m").
+        Independent verification of inductance (§2.8).
       ]
+    ],
+    [
+      #image("graphs/geometry_mag.svg", width: 100%)
     ]
   )
 ]
 
 // ## §2.5 Current density ######################################
 #slide(title: [§2.5 #sym.dot.c Current Density Distribution])[
-  #cols(
+  #cols(ratio: (1fr, 1.4fr),
     [
       *Current density* in massive conductors:
       $ bold(J) = -sigma (j omega bold(a) + u_r / l_z hat(z)) $
@@ -156,19 +160,20 @@
       #v(0.2cm)
       |J|#sub[max] / J#sub[0] = #f(J_max / (1.0/(calc.pi * (1.95e-3)*(1.95e-3))), d: 3) $approx$ 1 $->$ *almost uniform*, confirming skin-effect is negligible.
       At I = 400 A: |J|#sub[max] $approx$ #eng(J_max*400, unit: "A/m²").
-    ],
-    [
+
+      #v(0.3cm)
       #note(color: gold, title: "Skin-effect check")[
+        #set text(size: 11pt)
         $#sym.delta =$ #eng(skin_depth, unit: "m") $>> r_c =$ 1.95 mm at 50 Hz.
-        Nearly uniform J across conductor. Significant non-uniformity only appears above ~1 kHz for this size.
-        R#sub[AC] $approx$ R#sub[DC] confirms this.
+        Nearly uniform J across conductor. Significant non-uniformity only appears above ~1 kHz for this size. R#sub[AC] $approx$ R#sub[DC] confirms this.
       ]
       #v(0.2cm)
       *Proximity effect*: fields from neighbouring phases cause slight asymmetry in J distribution. This small effect (~0.2%) is the main source of R#sub[AC] > R#sub[DC].
-
-      #note(color: accent)[
-        Output: `res/jz_inds.pos` -- complex $J_z$; `res/jm.pos` -- |J| map on DomainC_Mag.
-      ]
+    ],
+    [
+      #image("graphs/geometry_mag.svg", width: 100%)
+      #set text(size: 10pt)
+      Open `res/jz_inds.pos` (complex $J_z$) or `res/jm.pos` (|J| map on DomainC_Mag) in Gmsh to visualise the distribution.
     ]
   )
 ]

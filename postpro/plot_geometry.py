@@ -64,12 +64,13 @@ r_inf   = r_env * 1.25
 
 # Phase centre positions (same formula as geometry.py)
 pair_radius = (2 * r_ins + clr) / math.sqrt(3)
-angles = [math.pi / 2, math.pi / 2 - 2 * math.pi / 3, math.pi / 2 + 2 * math.pi / 3]
+angles = [math.pi / 2, math.pi / 2 + 2 * math.pi / 3, math.pi / 2 - 2 * math.pi / 3]
 centres = [(pair_radius * math.cos(a), pair_radius * math.sin(a)) for a in angles]
 
 PHASE_LABELS = ["A", "B", "C"]
 PHASE_VOLTAGES = ["$V_0 e^{j\\cdot 0}$", "$V_0 e^{-j2\\pi/3}$", "$V_0 e^{+j2\\pi/3}$"]
 PHASE_CURRENTS = ["$I_A$", "$I_B$", "$I_C$"]
+# Note: angles are now [top=A, lower-left=B, lower-right=C] → ABC counterclockwise
 
 # --------------------------------------------------------------------------- #
 #  Colour palette                                                               #

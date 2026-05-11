@@ -13,7 +13,7 @@ For each bubble radius in R_DEF_UM:
 Output: slides/graphs/defect_field.svg
 """
 
-import os, re, math, subprocess
+import os, re, subprocess
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -48,23 +48,9 @@ with open("cable.toml") as f:
 
 mm = lambda x: x * 1e-3
 
-r_ins   = mm(toml_val(orig_toml, "insulation_outer_diameter") / 2)
-r_semi  = mm(toml_val(orig_toml, "semiconductor_outer_diameter") / 2)
-clr     = mm(toml_val(orig_toml, "core_clearance"))
-rel_r   = toml_section_val(orig_toml, "defect", "relative_radius") or 0.65
-d_ang   = toml_section_val(orig_toml, "defect", "angle") or (math.pi / 4)
 V_sim   = toml_val(orig_toml, "line_voltage_rms") or 3000.0
 V_rated = 33000.0
 scale   = V_rated / V_sim    # 11.0
-
-# Phase 0 centre (trefoil geometry, same formula as geometry.py)
-pair_radius = (2 * r_ins + clr) / math.sqrt(3)
-cx0, cy0    = 0.0, pair_radius
-
-# Defect centre (fixed for all bubble radii)
-r_def_pos = r_semi + rel_r * (r_ins - r_semi)
-bubble_cx = cx0 + r_def_pos * math.cos(d_ang)
-bubble_cy = cy0 + r_def_pos * math.sin(d_ang)
 
 
 # --- helpers -----------------------------------------------------------------
@@ -86,30 +72,21 @@ def patch_defect_radius(text, r_m):
     return re.sub(r'\[defect\].*?(?=\[|\Z)', repl, text, flags=re.DOTALL)
 
 
-def parse_em_bubble(path, cx, cy, search_r):
+BUBBLE_PHYS = 80   # AirBubble physical group tag (PHYS["AIR_BUBBLE"] in generator.py)
+
+
+def parse_em_bubble(path):
     """
     Parse res/em.pos (MSH2 + $ElementNodeData).
-    Return (max |E|, sample_count) among triangle elements whose centroid is within search_r.
+    Return (max |E|, sample_count) among elements in the AirBubble physical group (tag 80).
     """
     if not os.path.exists(path):
-        return None
+        return None, 0
     with open(path) as f:
         content = f.read()
 
-    # --- nodes ---
-    nodes = {}
-    in_sec = False
-    for line in content.split('\n'):
-        t = line.strip()
-        if t == '$Nodes':      in_sec = True;  continue
-        if t == '$EndNodes':   in_sec = False; continue
-        if in_sec:
-            p = t.split()
-            if len(p) == 4:
-                nodes[int(p[0])] = (float(p[1]), float(p[2]))
-
-    # --- triangles (type 2) ---
-    tris = {}
+    # --- elements in the AirBubble physical group ---
+    bubble_eids = set()
     in_sec = False
     for line in content.split('\n'):
         t = line.strip()
@@ -117,24 +94,32 @@ def parse_em_bubble(path, cx, cy, search_r):
         if t == '$EndElements':   in_sec = False; continue
         if in_sec:
             p = t.split()
-            if len(p) >= 5 and p[1] == '2':
-                tris[int(p[0])] = (int(p[-3]), int(p[-2]), int(p[-1]))
+            # MSH2: elm-number elm-type ntags tag1 tag2 ... nodes
+            if len(p) >= 5 and p[1] == '2' and int(p[2]) >= 1:
+                if int(p[3]) == BUBBLE_PHYS:
+                    bubble_eids.add(int(p[0]))
 
-    # --- first $ElementNodeData block (scalar |E|, real part) ---
+    if not bubble_eids:
+        return None, 0
+
+    # --- first $ElementNodeData block (scalar |E|) ---
     vals = {}
     in_sec = False
+    headers_seen = 0
     for line in content.split('\n'):
         t = line.strip()
         if t == '$ElementNodeData':
-            in_sec = True; continue
+            in_sec = True; headers_seen = 0; continue
         if t == '$EndElementNodeData':
             if vals:
-                break          # stop after first non-empty block
+                break
             in_sec = False; continue
         if not in_sec:
             continue
+        headers_seen += 1
+        if headers_seen <= 5:
+            continue
         p = t.split()
-        # Data rows have exactly 5 tokens: elem_id  3  v0  v1  v2
         if len(p) == 5:
             try:
                 eid = int(p[0])
@@ -145,20 +130,14 @@ def parse_em_bubble(path, cx, cy, search_r):
             except ValueError:
                 pass
 
-    # --- find max E near bubble centre ---
+    # --- max E strictly inside the air bubble ---
     max_e = None
     sample_count = 0
-    for eid, (n1, n2, n3) in tris.items():
-        c1 = nodes.get(n1); c2 = nodes.get(n2); c3 = nodes.get(n3)
-        if not (c1 and c2 and c3):
-            continue
-        tx = (c1[0] + c2[0] + c3[0]) / 3
-        ty = (c1[1] + c2[1] + c3[1]) / 3
-        if math.sqrt((tx - cx)**2 + (ty - cy)**2) < search_r:
-            v = vals.get(eid)
-            if v is not None:
-                sample_count += 1
-                max_e = max(max_e, v) if max_e is not None else v
+    for eid in bubble_eids:
+        v = vals.get(eid)
+        if v is not None:
+            sample_count += 1
+            max_e = max(max_e, v) if max_e is not None else v
     return max_e, sample_count
 
 
@@ -181,8 +160,7 @@ try:
         ):
             results[r_um] = None; continue
 
-        search_r = 1.15 * r_m
-        E_sim, n_samples = parse_em_bubble("res/em.pos", bubble_cx, bubble_cy, search_r)
+        E_sim, n_samples = parse_em_bubble("res/em.pos")
 
         if E_sim is not None:
             E_rated = E_sim * scale
@@ -207,57 +185,35 @@ finally:
 
 
 # --- plot --------------------------------------------------------------------
-E_bd_air = 3.0   # MV/m  (air DC breakdown plateau for large gaps)
-
-xs = [r for r in R_DEF_UM if results.get(r) is not None]
-ys = [results[r][0] / 1e6 for r in xs]
+xs            = [r for r in R_DEF_UM if results.get(r) is not None]
+ys_rated      = [results[r][0] / 1e6 for r in xs]   # MV/m @ 33 kV
+ys_sim        = [v / scale for v in ys_rated]        # MV/m @ V_sim (Gmsh view_elec)
 sample_counts = [results[r][1] for r in xs]
 
 fig, ax = plt.subplots(figsize=(10, 6.5))
 fig.patch.set_facecolor("white")
 
 if xs:
-    ax.plot(xs, ys, "o-", color=C_ACCENT, lw=2.3, ms=8, zorder=3,
-            label="|E| inside bubble (FEM, rated 33 kV)")
-    for x, y, n in zip(xs, ys, sample_counts):
-        label = f"{y:.2f}" if n >= 6 else f"{y:.2f}*"
+    ax.plot(xs, ys_sim, "o-", color=C_ACCENT, lw=2.3, ms=8, zorder=3,
+            label=f"|E| inside bubble (FEM, {V_sim/1000:.0f} kV sim)")
+    for x, y, n in zip(xs, ys_sim, sample_counts):
+        label = f"{y:.3f}" if n >= 6 else f"{y:.3f}*"
         ax.annotate(label, xy=(x, y), xytext=(0, 9),
                     textcoords="offset points", ha="center",
                     fontsize=9, color=C_NAVY)
-
-# Air breakdown threshold
-ax.axhline(E_bd_air, color=C_RED, ls="--", lw=2.0,
-           label=f"Air breakdown threshold  {E_bd_air:.0f} MV/m")
-
-# Shade PD zone (above threshold)
-if xs and any(y > E_bd_air for y in ys):
-    ax.fill_between(xs, E_bd_air, [max(y, E_bd_air) for y in ys],
-                    where=[y > E_bd_air for y in ys],
-                    color=C_RED, alpha=0.10, label="PD zone")
-
-# Find critical radius (first crossing from below)
-r_crit = None
-for i in range(len(xs) - 1):
-    if (ys[i] - E_bd_air) * (ys[i + 1] - E_bd_air) < 0:
-        r_crit = 0.5 * (xs[i] + xs[i + 1])
-        break
-if r_crit is not None:
-    ax.axvline(r_crit, color=C_RED, ls=":", lw=1.5,
-               label=f"r_crit ≈ {r_crit:.0f} µm")
-elif xs and ys[0] > E_bd_air:
-    ax.text(0.05, 0.10, "All tested radii in PD zone",
-            transform=ax.transAxes, fontsize=10, color=C_RED, style="italic")
 
 if xs and any(n < 6 for n in sample_counts):
     ax.text(0.05, 0.04, "* mesh-sensitive sample (<6 elements inside bubble)",
             transform=ax.transAxes, fontsize=8.5, color=C_NAVY)
 
 ax.set_xlabel("Bubble radius  (µm)", fontsize=12)
-ax.set_ylabel("|E| inside bubble  (MV/m)", fontsize=11)
+ax.set_ylabel(f"|E| inside bubble  (MV/m)  —  {V_sim/1000:.0f} kV sim", fontsize=11)
 ax.set_title(
-    "FEM field inside air bubble vs bubble radius\n@ 33 kV rated line voltage",
+    f"FEM field inside air bubble vs bubble radius\n"
+    f"@ {V_sim/1000:.0f} kV simulation  (make view_elec)",
     fontsize=12, fontweight="bold",
 )
+
 ax.legend(fontsize=10)
 ax.grid(True, alpha=0.25)
 ax.spines[["top", "right"]].set_visible(False)
